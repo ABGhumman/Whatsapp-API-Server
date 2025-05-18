@@ -132,7 +132,7 @@ app.get('/logout', (req, res) => {
 // Start the server
 app.listen(PORT, () => {
     initializeWhatsAppStore(); // Initialize WhatsApp store
-    console.log(`Server running at https://api-test-production-72da.up.railway.app/`);
+    console.log(`Server running at http://localhost:${PORT}`);
 
     // Set up a periodic check for users.json
     const usersFilePath = path.join(__dirname, 'users.json');
