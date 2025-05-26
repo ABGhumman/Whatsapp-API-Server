@@ -216,9 +216,9 @@ async function connectwhatsapp(userId) {
                 activeUsers.push(userId);
                 fs.writeFileSync(filePath, JSON.stringify(activeUsers, null, 2));
             }
-            if(fs.existsSync(qrPath)) {
-                fs.rmSync(qrPath, { recursive: true, force: true });
-            }
+            ///if(fs.existsSync(qrPath)) {
+               // fs.rmSync(qrPath, { recursive: true, force: true });
+          //  }
         }
 
         if (event['message.upsert']) {
