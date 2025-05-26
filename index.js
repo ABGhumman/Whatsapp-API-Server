@@ -1,7 +1,15 @@
 const express = require('express');
 const path = require('path');
-const fs = require('fs'); // ✅ You missed this import
-const { fetchGroups, connectwhatsapp, initializeWhatsAppStore, deleteUnusedSockets, logoutUser, sendMessageToGroups, incrementLinkClick } = require('./connectwhatsapp');
+const fs = require('fs');
+const { fetchGroups,
+    connectwhatsapp,
+    initializeWhatsAppStore,
+    deleteUnusedSockets,
+    logoutUser,
+    sendMessageToGroups,
+    incrementLinkClick,
+    getStats } = require('./connectwhatsapp');
+const { url } = require('inspector');
 
 const app = express();
 app.use(express.json());
@@ -12,7 +20,22 @@ const PORT = 5000;
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Serve QR images from /qr route
-app.use('/qr', express.static(path.join(__dirname, 'public')));
+app.get('/qr', (req, res) => {
+    const userId = req.query.userId;
+    if (!userId) {
+        return res.status(400).send('User ID is required.');
+    }
+
+    const qrPath = path.join(__dirname, 'qr', userId, 'qr.png');
+
+    if (fs.existsSync(qrPath)) {
+        res.setHeader('Content-Type', 'image/png');
+        fs.createReadStream(qrPath).pipe(res);
+    } else {
+        res.status(404).send('QR code not found.');
+    }
+});
+
 
 // Route to trigger WhatsApp connection
 app.get('/connect', (req, res) => {
@@ -26,14 +49,17 @@ app.get('/connect', (req, res) => {
     if (!fs.existsSync(userFolderPath) || fs.readdirSync(userFolderPath).length === 0) {
         connectwhatsapp(userId)
             .then(() => {
-                res.send('WhatsApp connection started. Scan QR at /qr/qr.png');
+                res.json({
+                    message: 'WhatsApp connection started. Please scan the QR code.',
+                    url: `http://localhost:${PORT}/qr/?userId=${userId}`
+                });
             })
             .catch(err => {
                 console.error("Error starting WhatsApp connection:", err);
                 res.status(500).send('Failed to start WhatsApp connection.');
             });
     } else {
-        res.send('Already connected.');
+        res.json({ message: 'Already connected.' });
     }
 });
 
@@ -60,7 +86,7 @@ app.get('/fetchGroups', (req, res) => {
                 res.status(500).send('Failed to fetch WhatsApp groups.');
             });
     } else {
-        res.send('Please log in first by scanning the QR code.');
+        res.json({ message: 'Please log in first by scanning the QR code.' });
     }
 });
 
@@ -81,7 +107,7 @@ app.post('/sendmessage', async (req, res) => {
             return res.status(500).json({ success: false, error: "Failed to send messages" });
         }
     } else {
-        res.send('Please log in first by scanning the QR code.');
+        res.json({ message: 'Please log in first by scanning the QR code.' });
     }
 });
 
@@ -95,15 +121,35 @@ app.get('/click/:userId/:linkId', (req, res) => {
     if (!fs.existsSync(userFolderPath) || fs.readdirSync(userFolderPath).length === 0) {
         return res.status(403).send('User is not logged in.');
     }
-    else{
-    try {
-        const url = incrementLinkClick(userId, linkId);
-        return res.redirect(url);
-    } catch (err) {
-        console.error(err);
-        return res.status(404).send(err.message);
+    else {
+        try {
+            const url = incrementLinkClick(userId, linkId);
+            return res.redirect(url);
+        } catch (err) {
+            console.error(err);
+            return res.status(404).send(err.message);
+        }
     }
-}
+});
+
+app.get('/statscounts', async (req, res) => {
+    const userId = req.query.userId;
+
+    if (!userId) {
+        return res.status(400).json({ error: 'User ID is required.' });
+    }
+    const userFolderPath = path.join(__dirname, 'countstats', userId);
+    if (!fs.existsSync(userFolderPath) || fs.readdirSync(userFolderPath).length === 0) {
+        return res.status(403).send('User is not logged in.');
+    }
+    try {
+        const stats = await getStats(userId);
+        return res.status(200).json(stats);
+
+    } catch (err) {
+        console.error("Error fetching stats:", err);
+        return res.status(500).json({ error: 'Failed to fetch stats.' });
+    }
 });
 
 app.get('/logout', (req, res) => {

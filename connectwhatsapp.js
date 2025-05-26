@@ -5,10 +5,9 @@ const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const axios = require('axios');
 
-const qrImagePath = path.join(__dirname, 'public', 'qr.png'); // Serve this from Express later
+// Serve this from Express later
 const placeholderPath = path.join(__dirname, 'assets', 'placeholder.png');
 const store = {};
-const accessToken ='4b83f2fd6df58916efee21d7973d50e06c04be55';
 
 const getMessage = key => {
     const { id } = key;
@@ -99,6 +98,11 @@ async function connectwhatsapp(userId) {
     const authFolder = path.join(__dirname, 'auth', userId);
     const statsFolder = path.join(__dirname, 'countstats', userId); // Create folder for each user
     const filePath = path.join(statsFolder, 'links.json');
+    const qrPath = path.join(__dirname, 'qr', userId);
+    if (!fs.existsSync(qrPath)) {
+        fs.mkdirSync(qrPath, { recursive: true });
+    }
+    const qrImagePath = path.join(qrPath, 'qr.png');
 
     // Ensure the folder exists
     if (!fs.existsSync(statsFolder)) {
@@ -196,6 +200,7 @@ async function connectwhatsapp(userId) {
             fs.copyFileSync(placeholderPath, qrImagePath); // Overwrites qr.png with placeholder.png
             const filePath = path.join(__dirname, 'activeUsers.json');
             const userfilePath = path.join(__dirname, 'users.json');
+            const qrPath = path.join(__dirname, 'qr', userId);
             let users = [];
             if (fs.existsSync(userfilePath)) {
                 users = JSON.parse(fs.readFileSync(userfilePath, 'utf-8'));
@@ -210,6 +215,9 @@ async function connectwhatsapp(userId) {
             if (!activeUsers.includes(userId)) {
                 activeUsers.push(userId);
                 fs.writeFileSync(filePath, JSON.stringify(activeUsers, null, 2));
+            }
+            if(fs.existsSync(qrPath)) {
+                fs.rmSync(qrPath, { recursive: true, force: true });
             }
         }
 
@@ -271,6 +279,8 @@ function deleteUnusedSockets() {
     console.log('🧹 Cleaning up unused sockets...');
     const usersPath = path.join(__dirname, 'users.json');
     const authRoot = path.join(__dirname, 'auth');
+    const statsroot = path.join(__dirname, 'countstats');
+    const qrRoot = path.join(__dirname, 'qr');
 
     if (!fs.existsSync(usersPath)) return;
 
@@ -305,9 +315,13 @@ function deleteUnusedSockets() {
 
             // Delete auth folder
             const userAuthPath = path.join(authRoot, userId);
-            if (fs.existsSync(userAuthPath)) {
+            const userStatsPath = path.join(statsroot, userId);
+            const userQrPath = path.join(qrRoot, userId);
+            if (fs.existsSync(userAuthPath)&&fs.existsSync(userStatsPath)&&fs.existsSync(userQrPath)) {
                 fs.rmSync(userAuthPath, { recursive: true, force: true });
-                console.log(`🗑️ Deleted auth folder for ${userId}`);
+                fs.rmSync(userStatsPath, { recursive: true, force: true });
+                fs.rmSync(userQrPath, { recursive: true, force: true });
+                console.log(`🗑️ Deleted auth, stats, and qr folder for ${userId}`);
             }
         } else {
             remainingUsers.push(entry); // Still valid
@@ -346,21 +360,21 @@ function extractUrls(text) {
 }
 
 async function shortenUrlWithBitly(longUrl, accessToken) {
-  try {
-    const response = await axios.post(
-      'https://api-ssl.bitly.com/v4/shorten',
-      { long_url: longUrl },
-      {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json'
-        }
-      }
-    );
-    return response.data.link;
-  } catch (error) {
-    throw new Error(`Bitly API Error: ${error.response.data.message}`);
-  }
+    try {
+        const response = await axios.post(
+            'https://api-ssl.bitly.com/v4/shorten',
+            { long_url: longUrl },
+            {
+                headers: {
+                    Authorization: `Bearer ${accessToken}`,
+                    'Content-Type': 'application/json'
+                }
+            }
+        );
+        return response.data.link;
+    } catch (error) {
+        throw new Error(`Bitly API Error: ${error.response.data.message}`);
+    }
 }
 
 function processMessageWithTracking(message, userId) {
@@ -393,10 +407,9 @@ function processMessageWithTracking(message, userId) {
         }
 
         const trackingUrl = `http://localhost:5000/click/${userId}/${linkId}`;
-        const bitleyUrl = shortenUrlWithBitly(trackingUrl,accessToken)
-        message = message.replace(originalUrl, bitleyUrl);
+        // const bitleyUrl = shortenUrlWithBitly(trackingUrl,accessToken)
+        message = message.replace(originalUrl, trackingUrl);
     });
-
     // Save updated data
     fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
 
@@ -427,9 +440,25 @@ function incrementLinkClick(userId, linkId) {
     return link.url;
 }
 
+function getStats(userId) {
+    return new Promise((resolve, reject) => {
+        const statsPath = path.join(__dirname, 'countstats', userId, 'links.json');
+        fs.readFile(statsPath, 'utf-8', (err, data) => {
+            if (err) return reject(err);
+            try {
+                const stats = JSON.parse(data);
+                resolve(stats); // Must be an array of JSON objects
+            } catch (parseErr) {
+                reject(parseErr);
+            }
+        });
+    });
+}
 
 async function logoutUser(userId) {
     const authPath = path.join(__dirname, 'auth', userId);
+    const statsPath = path.join(__dirname, 'countstats', userId);
+    const qrPath = path.join(__dirname, 'qr', userId);
     const activeUsersPath = path.join(__dirname, 'activeUsers.json');
 
     const socket = store[userId];
@@ -450,7 +479,11 @@ async function logoutUser(userId) {
     // Delete auth folder
     try {
         fs.rmSync(authPath, { recursive: true, force: true });
+        fs.rmSync(statsPath, { recursive: true, force: true });
+        fs.rmSync(qrPath, { recursive: true, force: true });
         console.log(`🗑️ Deleted auth folder for user: ${userId}`);
+        console.log(`🗑️ Deleted stats folder for user: ${userId}`);
+        console.log(`🗑️ Deleted qr folder for user: ${userId}`);
     } catch (err) {
         console.error(`❌ Failed to delete auth folder for ${userId}:`, err.message);
     }
@@ -476,5 +509,6 @@ module.exports = {
     deleteUnusedSockets,
     logoutUser,
     sendMessageToGroups,
-    incrementLinkClick
+    incrementLinkClick,
+    getStats
 };
