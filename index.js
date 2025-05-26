@@ -12,6 +12,10 @@ const { fetchGroups,
 const { url } = require('inspector');
 
 const app = express();
+const cors = require('cors');
+app.use(cors());
+app.use('/qr', cors(), express.static('path_to_qr_images'));
+
 app.use(express.json());
 const PORT = 5000;
 
@@ -35,6 +39,21 @@ app.get('/qr', (req, res) => {
         res.status(404).send('QR code not found.');
     }
 });
+
+app.get('/proxy-qr', async (req, res) => {
+  const userId = req.query.userId;
+  const imageUrl = `http://localhost:5000/qr/?userId=${userId}`;
+
+  const response = await fetch(imageUrl);
+  const buffer = await response.arrayBuffer();
+
+  res.set('Access-Control-Allow-Origin', '*');
+res.set('Content-Type', 'image/png'); // or image/jpeg etc.
+
+  res.send(Buffer.from(buffer));
+});
+
+
 
 
 // Route to trigger WhatsApp connection
@@ -176,7 +195,7 @@ app.get('/logout', (req, res) => {
 });
 
 // Start the server
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0',() => {
     initializeWhatsAppStore(); // Initialize WhatsApp store
     console.log(`Server running at http://localhost:${PORT}`);
 
