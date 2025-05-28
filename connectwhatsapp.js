@@ -60,6 +60,16 @@ async function initializeWhatsAppStore() {
                             try {
                                 // 1. Delete auth folder for user
                                 const authFolder = path.join(__dirname, 'auth', userId);
+                                const statsFolder = path.join(__dirname, 'countstats', userId);
+                                const qrFolder = path.join(__dirname, 'qr', userId);
+                                if (fs.existsSync(qrFolder)) {
+                                    fs.rmSync(qrFolder, { recursive: true, force: true });
+                                    console.log(`Deleted qr folder for user ${userId}`);
+                                }
+                                if (fs.existsSync(statsFolder)) {
+                                    fs.rmSync(statsFolder, { recursive: true, force: true });
+                                    console.log(`Deleted stats folder for user ${userId}`);
+                                }
                                 if (fs.existsSync(authFolder)) {
                                     fs.rmSync(authFolder, { recursive: true, force: true });
                                     console.log(`Deleted auth folder for user ${userId}`);
@@ -168,6 +178,16 @@ async function connectwhatsapp(userId) {
                     try {
                         // 1. Delete auth folder for user
                         const authFolder = path.join(__dirname, 'auth', userId);
+                        const statsFolder = path.join(__dirname, 'countstats', userId);
+                        const qrFolder = path.join(__dirname, 'qr', userId);
+                        if (fs.existsSync(qrFolder)) {
+                            fs.rmSync(qrFolder, { recursive: true, force: true });
+                            console.log(`Deleted qr folder for user ${userId}`);
+                        }
+                        if (fs.existsSync(statsFolder)) {
+                            fs.rmSync(statsFolder, { recursive: true, force: true });
+                            console.log(`Deleted stats folder for user ${userId}`);
+                        }
                         if (fs.existsSync(authFolder)) {
                             fs.rmSync(authFolder, { recursive: true, force: true });
                             console.log(`Deleted auth folder for user ${userId}`);

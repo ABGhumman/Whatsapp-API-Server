@@ -65,7 +65,7 @@ app.get('/connect', (req, res) => {
     }
 
     const userFolderPath = path.join(__dirname, 'auth', userId);
-    if (!fs.existsSync(userFolderPath) || fs.readdirSync(userFolderPath).length === 0) {
+    if (!fs.existsSync(userFolderPath)) {
         connectwhatsapp(userId)
             .then(() => {
                 res.json({
@@ -77,7 +77,26 @@ app.get('/connect', (req, res) => {
                 console.error("Error starting WhatsApp connection:", err);
                 res.status(500).send('Failed to start WhatsApp connection.');
             });
-    } else {
+    } else if (fs.readdirSync(userFolderPath).length === 0) {
+        const userPath = path.join(__dirname, 'users.json');
+        if (fs.existsSync(userPath)) {
+            let users = JSON.parse(fs.readFileSync(userPath, 'utf-8'));
+            // users is expected to be an array of objects
+            const userIndex = users.findIndex(u => u.userId === userId);
+            if (userIndex !== -1) {
+            users[userIndex].timestamp = Date.now();
+            fs.writeFileSync(userPath, JSON.stringify(users, null, 2));
+            res.json({
+                    message: 'WhatsApp connection started. Please scan the QR code.',
+                    url: `http://localhost:${PORT}/qr/?userId=${userId}`
+                });
+            } else {
+            res.status(404).send('User not found.');
+            }
+        }
+    }
+    else
+    {
         res.json({ message: 'Already connected.' });
     }
 });
@@ -191,6 +210,22 @@ app.get('/logout', (req, res) => {
             });
     } else {
         res.send('Please log in first by scanning the QR code.');
+    }
+});
+
+app.get('/status', (req, res) => {
+    const userId = req.query.userId;
+
+    if (!userId) {
+        return res.status(400).send('User ID is required.');
+    }
+
+    const userFolderPath = path.join(__dirname, 'auth', userId);
+
+    if (fs.existsSync(userFolderPath) && fs.readdirSync(userFolderPath).length > 0) {
+        res.json({ status: 'True' });
+    } else {
+        res.json({ status: 'False' });
     }
 });
 
