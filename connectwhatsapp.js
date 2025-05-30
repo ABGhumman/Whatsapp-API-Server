@@ -8,6 +8,7 @@ const axios = require('axios');
 // Serve this from Express later
 const placeholderPath = path.join(__dirname, 'assets', 'placeholder.png');
 const store = {};
+const accessToken= "23ba056faf7d8b23aad142699b0624a177a225a0";
 
 const getMessage = key => {
     const { id } = key;
@@ -391,13 +392,14 @@ async function shortenUrlWithBitly(longUrl, accessToken) {
                 }
             }
         );
+        console.log("Bitly Response:", response.data);
         return response.data.link;
     } catch (error) {
         throw new Error(`Bitly API Error: ${error.response.data.message}`);
     }
 }
 
-function processMessageWithTracking(message, userId) {
+async function processMessageWithTracking(message, userId) {
     const userFolder = path.join(__dirname, 'countstats', userId);
     const filePath = path.join(userFolder, 'links.json');
 
@@ -414,27 +416,37 @@ function processMessageWithTracking(message, userId) {
 
     const urls = extractUrls(message);
 
-    urls.forEach(originalUrl => {
-        // Check if already tracked
+    for (const originalUrl of urls) {
         const existing = data.find(entry => entry.url === originalUrl);
 
         let linkId;
+        let bitlyUrl;
+
         if (existing) {
             linkId = existing.id;
+            bitlyUrl = existing.bitly;
         } else {
             linkId = uuidv4();
-            data.push({ id: linkId, url: originalUrl, count: 0 });
+            bitlyUrl = await shortenUrlWithBitly(originalUrl, accessToken);
+            data.push({
+                id: linkId,
+                url: originalUrl,
+                bitly: bitlyUrl,
+                count: 0,
+                timestamp: Date.now()
+            });
         }
 
         const trackingUrl = `http://localhost:5000/click/${userId}/${linkId}`;
-        // const bitleyUrl = shortenUrlWithBitly(trackingUrl,accessToken)
         message = message.replace(originalUrl, trackingUrl);
-    });
+    }
+
     // Save updated data
     fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
 
     return message;
 }
+
 
 
 function incrementLinkClick(userId, linkId) {
@@ -474,6 +486,30 @@ function getStats(userId) {
         });
     });
 }
+
+function parseToMillis(dateString) {
+    const [day, month, year] = dateString.split('-');
+    const date = new Date(`${year}-${month}-${day}`);
+    return date.getTime();
+}
+
+function getLinks(userId, date) {
+     newdate = parseToMillis(date);
+    return new Promise((resolve, reject) => {
+        const statsPath = path.join(__dirname, 'countstats', userId, 'links.json');
+        fs.readFile(statsPath, 'utf-8', (err, data) => {
+            if (err) return reject(err);
+            try {
+                const stats = JSON.parse(data); // Should be an array
+                const filteredStats = stats.filter(item => item.timestamp >= newdate);
+                resolve(filteredStats);
+            } catch (parseErr) {
+                reject(parseErr);
+            }
+        });
+    });
+}
+
 
 async function logoutUser(userId) {
     const authPath = path.join(__dirname, 'auth', userId);
@@ -530,5 +566,6 @@ module.exports = {
     logoutUser,
     sendMessageToGroups,
     incrementLinkClick,
-    getStats
+    getStats,
+    getLinks
 };

@@ -8,7 +8,9 @@ const { fetchGroups,
     logoutUser,
     sendMessageToGroups,
     incrementLinkClick,
-    getStats } = require('./connectwhatsapp');
+    getStats, 
+    getLinks
+ } = require('./connectwhatsapp');
 const { url } = require('inspector');
 
 const app = express();
@@ -125,6 +127,37 @@ app.get('/fetchGroups', (req, res) => {
             });
     } else {
         res.json({ message: 'Please log in first by scanning the QR code.' });
+    }
+});
+
+app.get('/getLinks', (req, res) => {
+    const userId = req.query.userId;
+    const date = req.body.date;
+    if (!userId) {
+        return res.status(400).send('User ID is required.');
+    }
+
+    if (!date) {
+        return res.status(400).send('Date is required.');
+    }
+
+    const statsFolderPath = path.join(__dirname, 'countstats', userId);
+    const filePath = path.join(statsFolderPath, `${userId}.json`);
+
+    if (fs.existsSync(filePath) && fs.readdirSync(filePath).length > 0) {
+        getLinks(userId,)
+            .then(links => {
+                if (groups.error) {
+                    return res.status(500).send(groups.error);
+                }
+                res.json(links);
+            })
+            .catch(err => {
+                console.error("Error fetching links:", err);
+                res.status(500).send('Failed to fetch Links.');
+            });
+    } else {
+        res.json({ message: 'Please share links to see analysics' });
     }
 });
 
