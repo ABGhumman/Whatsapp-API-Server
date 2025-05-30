@@ -359,7 +359,7 @@ async function sendMessageToGroups(userId, groupJids, message) {
         console.error(`❌ No active socket found for user ${userId}`);
         return;
     }
-    const nmessage = processMessageWithTracking(message, userId);
+    const nmessage = await processMessageWithTracking(message, userId);
     if (!nmessage) {
         console.error(`❌ Failed to process message for user ${userId}`);
         return;
@@ -376,6 +376,7 @@ async function sendMessageToGroups(userId, groupJids, message) {
 }
 
 function extractUrls(text) {
+     if (typeof text !== 'string') return [];
     const urlRegex = /(https?:\/\/[^\s]+)/g;
     return text.match(urlRegex) || [];
 }
@@ -420,14 +421,14 @@ async function processMessageWithTracking(message, userId) {
         const existing = data.find(entry => entry.url === originalUrl);
 
         let linkId;
-        let bitlyUrl;
+        let bitlyUrl="{}";
 
         if (existing) {
             linkId = existing.id;
             bitlyUrl = existing.bitly;
         } else {
             linkId = uuidv4();
-            bitlyUrl = await shortenUrlWithBitly(originalUrl, accessToken);
+            //bitlyUrl = await shortenUrlWithBitly(originalUrl, accessToken);
             data.push({
                 id: linkId,
                 url: originalUrl,

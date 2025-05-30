@@ -130,7 +130,7 @@ app.get('/fetchGroups', (req, res) => {
     }
 });
 
-app.get('/getLinks', (req, res) => {
+app.post('/getLinks', (req, res) => {
     const userId = req.query.userId;
     const date = req.body.date;
     if (!userId) {
@@ -142,14 +142,11 @@ app.get('/getLinks', (req, res) => {
     }
 
     const statsFolderPath = path.join(__dirname, 'countstats', userId);
-    const filePath = path.join(statsFolderPath, `${userId}.json`);
+    const filePath = path.join(statsFolderPath, `links.json`);
 
-    if (fs.existsSync(filePath) && fs.readdirSync(filePath).length > 0) {
-        getLinks(userId,)
+    if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+        getLinks(userId)
             .then(links => {
-                if (groups.error) {
-                    return res.status(500).send(groups.error);
-                }
                 res.json(links);
             })
             .catch(err => {
@@ -157,9 +154,10 @@ app.get('/getLinks', (req, res) => {
                 res.status(500).send('Failed to fetch Links.');
             });
     } else {
-        res.json({ message: 'Please share links to see analysics' });
+        res.json({ message: 'Please share links to see analytics' });
     }
 });
+
 
 app.post('/sendmessage', async (req, res) => {
     const { userId, message, groupJids } = req.body;
