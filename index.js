@@ -145,7 +145,7 @@ app.post('/getLinks', (req, res) => {
     const filePath = path.join(statsFolderPath, `links.json`);
 
     if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
-        getLinks(userId)
+        getLinks(userId,date)
             .then(links => {
                 res.json(links);
             })
