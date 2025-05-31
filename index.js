@@ -9,7 +9,8 @@ const { fetchGroups,
     sendMessageToGroups,
     incrementLinkClick,
     getStats, 
-    getLinks
+    getLinks,
+    getLinkStatus
  } = require('./connectwhatsapp');
 const { url } = require('inspector');
 
@@ -158,6 +159,33 @@ app.post('/getLinks', (req, res) => {
     }
 });
 
+
+app.post('/getLinkstatus', (req, res) => {
+    const userId = req.query.userId;
+    const link = req.body.link;
+    if (!userId) {
+        return res.status(400).send('User ID is required.');
+    }
+
+    if (!link) {
+        return res.status(400).send('Date is required.');
+    }
+
+    const statsFolderPath = path.join(__dirname, 'countstats', userId);
+    const filePath = path.join(statsFolderPath, `links.json`);
+
+    if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+        try {
+            const status = getLinkStatus(userId, link);
+            res.json(status);
+        } catch (err) {
+            console.error("Error checking link status:", err);
+            res.status(500).send('Failed to check Link Status.');
+        }
+    } else {
+        res.json({ message: 'Not shared' });
+    }
+});
 
 app.post('/sendmessage', async (req, res) => {
     const { userId, message, groupJids } = req.body;

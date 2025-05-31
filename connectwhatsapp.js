@@ -598,6 +598,32 @@ function getStats(userId) {
     });
 }
 
+function getLinkStatus(userId, link) {
+    const statsFolderPath = path.join(__dirname, 'countstats', userId);
+    const filePath = path.join(statsFolderPath, 'links.json');
+
+    try {
+        if (!fs.existsSync(filePath)) {
+            console.warn(`⚠️ No stats file found for user: ${userId}`);
+            return { status: 'not shared' };
+        }
+
+        const data = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+
+        const match = data.find(item => item.url === link);
+
+        if (match) {
+            return { status: 'Already shared' };
+        } else {
+            return { status: 'Not shared' };
+        }
+
+    } catch (err) {
+        console.error(`❌ Error reading stats file for ${userId}:`, err.message);
+        return { status: 'not shared' };
+    }
+}
+
 function parseToMillis(dateString) {
     const [day, month, year] = dateString.split('-');
     const date = new Date(`${year}-${month}-${day}`);
@@ -678,5 +704,6 @@ module.exports = {
     sendMessageToGroups,
     incrementLinkClick,
     getStats,
-    getLinks
+    getLinks,
+    getLinkStatus
 };
