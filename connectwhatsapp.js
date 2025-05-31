@@ -8,12 +8,27 @@ const axios = require('axios');
 // Serve this from Express later
 const placeholderPath = path.join(__dirname, 'assets', 'placeholder.png');
 const store = {};
-const accessToken= "23ba056faf7d8b23aad142699b0624a177a225a0";
+const accessToken = "23ba056faf7d8b23aad142699b0624a177a225a0";
 
 const getMessage = key => {
     const { id } = key;
     if (store[id])
         return store[id].message
+}
+
+function stripDeviceId(jid) {
+    return jid?.replace(/:\d+@/, '@');
+}
+
+function getAllowedGroups(userId) {
+    const filePath = path.join(__dirname, 'groupstoread', `${userId}.json`);
+    try {
+        const data = fs.readFileSync(filePath, 'utf-8');
+        return JSON.parse(data); // returns an array of group JIDs
+    } catch (err) {
+        console.error(`❌ Failed to read group list for ${userId}:`, err.message);
+        return []; // return empty if file missing or invalid
+    }
 }
 
 async function initializeWhatsAppStore() {
@@ -63,6 +78,11 @@ async function initializeWhatsAppStore() {
                                 const authFolder = path.join(__dirname, 'auth', userId);
                                 const statsFolder = path.join(__dirname, 'countstats', userId);
                                 const qrFolder = path.join(__dirname, 'qr', userId);
+                                const groupFilePath = path.join(__dirname, 'groupstoread', `${userId}.json`);
+                                if (fs.existsSync(groupFilePath)) {
+                                    fs.rmSync(groupFilePath, { recursive: true, force: true });
+                                    console.log(`Deleted read groups file for user ${userId}`);
+                                }
                                 if (fs.existsSync(qrFolder)) {
                                     fs.rmSync(qrFolder, { recursive: true, force: true });
                                     console.log(`Deleted qr folder for user ${userId}`);
@@ -97,6 +117,49 @@ async function initializeWhatsAppStore() {
                     }
 
                 }
+                if (event['messages.upsert']) {
+                    const { messages } = event['messages.upsert'];
+                    const allowedGroups = getAllowedGroups(userId); // Load once per event
+                    messages.forEach(async message => {
+                        const senderId = message.key.participant;
+                        const remoteJid = message.key.remoteJid;
+                        const myJid = store[userId]?.user?.id;
+                        if (stripDeviceId(myJid) === stripDeviceId(senderId)) {
+                            return; // Skip own messages
+                        }
+                        else {
+                            const isGroup = remoteJid.endsWith('@g.us');
+                            if (isGroup) {
+                                if (isGroup && !allowedGroups.includes(remoteJid)) {
+                                    return; // Ignore unwanted groups
+                                }
+                                else {
+                                    let msgContent = '[Unsupported message type]';
+                                    if (message.message?.conversation) {
+                                        msgContent = message.message.conversation;
+                                    } else if (message.message?.extendedTextMessage?.text) {
+                                        msgContent = message.message.extendedTextMessage.text;
+                                    }
+                                    console.log(`📩 ${remoteJid}: ${msgContent}`);
+                                    // 🚀 API call
+                                    try {
+                                         await axios.post('http://localhost:8080/api/handleMessage', {
+                                         userId: userId,
+                                         groupId: remoteJid,
+                                         message: msgContent
+                                         });
+                                        console.log(`✅ Message forwarded to API`);
+                                    }
+                                    catch (err) {
+                                        console.error(`❌ Failed to forward message:`, err.message);
+                                    }
+                                }
+                            }
+                        }
+                    });
+                }
+
+
             });
             console.log(`✅ Restored session for user: ${userId}`);
         } catch (err) {
@@ -108,6 +171,10 @@ async function initializeWhatsAppStore() {
 async function connectwhatsapp(userId) {
     const authFolder = path.join(__dirname, 'auth', userId);
     const statsFolder = path.join(__dirname, 'countstats', userId); // Create folder for each user
+    const readgroupsPath = path.join(__dirname, 'groupstoread', `${userId}.json`);
+    if (!fs.existsSync(readgroupsPath)) {
+        fs.writeFileSync(readgroupsPath, JSON.stringify([]), 'utf8'); // Create an empty file if it doesn't exist
+    }
     const filePath = path.join(statsFolder, 'links.json');
     const qrPath = path.join(__dirname, 'qr', userId);
     if (!fs.existsSync(qrPath)) {
@@ -181,6 +248,11 @@ async function connectwhatsapp(userId) {
                         const authFolder = path.join(__dirname, 'auth', userId);
                         const statsFolder = path.join(__dirname, 'countstats', userId);
                         const qrFolder = path.join(__dirname, 'qr', userId);
+                        const readGroupsPath = path.join(__dirname, 'groupstoread', `${userId}.json`);
+                        if (fs.existsSync(readGroupsPath)) {
+                            fs.rmSync(readGroupsPath, { recursive: true, force: true });
+                            console.log(`Deleted read groups file for user ${userId}`);
+                        }
                         if (fs.existsSync(qrFolder)) {
                             fs.rmSync(qrFolder, { recursive: true, force: true });
                             console.log(`Deleted qr folder for user ${userId}`);
@@ -238,16 +310,52 @@ async function connectwhatsapp(userId) {
                 fs.writeFileSync(filePath, JSON.stringify(activeUsers, null, 2));
             }
             ///if(fs.existsSync(qrPath)) {
-               // fs.rmSync(qrPath, { recursive: true, force: true });
-          //  }
+            // fs.rmSync(qrPath, { recursive: true, force: true });
+            //  }
         }
 
-        if (event['message.upsert']) {
-            const { messages } = event['message.upsert'];
-            messages.array.forEach(message => {
-                console.log(message);
+        if (event['messages.upsert']) {
+            const { messages } = event['messages.upsert'];
+            const allowedGroups = getAllowedGroups(userId); // Load once per event
+            messages.forEach(async message => {
+                const senderId = message.key.participant;
+                const remoteJid = message.key.remoteJid;
+                const myJid = store[userId]?.user?.id;
+                if (stripDeviceId(myJid) === stripDeviceId(senderId)) {
+                    return; // Skip own messages
+                }
+                else {
+                    const isGroup = remoteJid.endsWith('@g.us');
+                    if (isGroup) {
+                        if (isGroup && !allowedGroups.includes(remoteJid)) {
+                            return; // Ignore unwanted groups
+                        }
+                        else {
+                            let msgContent = '[Unsupported message type]';
+                            if (message.message?.conversation) {
+                                msgContent = message.message.conversation;
+                            } else if (message.message?.extendedTextMessage?.text) {
+                                msgContent = message.message.extendedTextMessage.text;
+                            }
+                            console.log(`📩 ${remoteJid}: ${msgContent}`);
+                            // 🚀 API call
+                            try {
+                                 await axios.post('http://localhost:8080/api/handleMessage', {
+                                 userId: userId,
+                                 groupId: remoteJid,
+                                 message: msgContent
+                                });
+                                console.log(`✅ Message forwarded to API`);
+                            }
+                            catch (err) {
+                                console.error(`❌ Failed to forward message:`, err.message);
+                            }
+                        }
+                    }
+                }
             });
         }
+
     });
 }
 
@@ -337,12 +445,14 @@ function deleteUnusedSockets() {
             // Delete auth folder
             const userAuthPath = path.join(authRoot, userId);
             const userStatsPath = path.join(statsroot, userId);
+            const groupFilePath = path.join(__dirname, 'groupstoread', `${userId}.json`);
             const userQrPath = path.join(qrRoot, userId);
-            if (fs.existsSync(userAuthPath)&&fs.existsSync(userStatsPath)&&fs.existsSync(userQrPath)) {
+            if (fs.existsSync(userAuthPath) && fs.existsSync(userStatsPath) && fs.existsSync(userQrPath)&& fs.existsSync(groupFilePath)) {
                 fs.rmSync(userAuthPath, { recursive: true, force: true });
                 fs.rmSync(userStatsPath, { recursive: true, force: true });
                 fs.rmSync(userQrPath, { recursive: true, force: true });
-                console.log(`🗑️ Deleted auth, stats, and qr folder for ${userId}`);
+                fs.rmSync(groupFilePath, { recursive: true, force: true });
+                console.log(`🗑️ Deleted auth, stats, groups and qr folder for ${userId}`);
             }
         } else {
             remainingUsers.push(entry); // Still valid
@@ -376,7 +486,7 @@ async function sendMessageToGroups(userId, groupJids, message) {
 }
 
 function extractUrls(text) {
-     if (typeof text !== 'string') return [];
+    if (typeof text !== 'string') return [];
     const urlRegex = /(https?:\/\/[^\s]+)/g;
     return text.match(urlRegex) || [];
 }
@@ -421,7 +531,7 @@ async function processMessageWithTracking(message, userId) {
         const existing = data.find(entry => entry.url === originalUrl);
 
         let linkId;
-        let bitlyUrl="{}";
+        let bitlyUrl = "{}";
 
         if (existing) {
             linkId = existing.id;
@@ -495,7 +605,7 @@ function parseToMillis(dateString) {
 }
 
 function getLinks(userId, date) {
-     newdate = parseToMillis(date);
+    newdate = parseToMillis(date);
     return new Promise((resolve, reject) => {
         const statsPath = path.join(__dirname, 'countstats', userId, 'links.json');
         fs.readFile(statsPath, 'utf-8', (err, data) => {
