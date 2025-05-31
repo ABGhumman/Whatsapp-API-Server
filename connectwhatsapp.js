@@ -143,7 +143,7 @@ async function initializeWhatsAppStore() {
                                     console.log(`📩 ${remoteJid}: ${msgContent}`);
                                     // 🚀 API call
                                     try {
-                                         await axios.post('http://localhost:8080/api/handleMessage', {
+                                         await axios.post('http://localhost:8080/reader/message', {
                                          userId: userId,
                                          groupId: remoteJid,
                                          message: msgContent
@@ -340,7 +340,7 @@ async function connectwhatsapp(userId) {
                             console.log(`📩 ${remoteJid}: ${msgContent}`);
                             // 🚀 API call
                             try {
-                                 await axios.post('http://localhost:8080/api/handleMessage', {
+                                 await axios.post('http://localhost:8080/reader/message', {
                                  userId: userId,
                                  groupId: remoteJid,
                                  message: msgContent
@@ -558,7 +558,10 @@ async function processMessageWithTracking(message, userId) {
     return message;
 }
 
-
+function separator(message) {
+    const urls = extractUrls(message);
+    return urls;
+}
 
 function incrementLinkClick(userId, linkId) {
     const folderPath = path.join(__dirname, 'countstats', userId);
@@ -653,6 +656,7 @@ async function logoutUser(userId) {
     const statsPath = path.join(__dirname, 'countstats', userId);
     const qrPath = path.join(__dirname, 'qr', userId);
     const activeUsersPath = path.join(__dirname, 'activeUsers.json');
+    const groupFilePath = path.join(__dirname, 'groupstoread', `${userId}.json`);
 
     const socket = store[userId];
     if (!socket) {
@@ -674,9 +678,11 @@ async function logoutUser(userId) {
         fs.rmSync(authPath, { recursive: true, force: true });
         fs.rmSync(statsPath, { recursive: true, force: true });
         fs.rmSync(qrPath, { recursive: true, force: true });
+        fs.rmSync(groupFilePath, { recursive: true, force: true });
         console.log(`🗑️ Deleted auth folder for user: ${userId}`);
         console.log(`🗑️ Deleted stats folder for user: ${userId}`);
         console.log(`🗑️ Deleted qr folder for user: ${userId}`);
+        console.log(`🗑️ Deleted read groups file for user: ${userId}`);
     } catch (err) {
         console.error(`❌ Failed to delete auth folder for ${userId}:`, err.message);
     }
@@ -705,5 +711,6 @@ module.exports = {
     incrementLinkClick,
     getStats,
     getLinks,
-    getLinkStatus
+    getLinkStatus,
+    separator
 };

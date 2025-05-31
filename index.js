@@ -10,7 +10,8 @@ const { fetchGroups,
     incrementLinkClick,
     getStats, 
     getLinks,
-    getLinkStatus
+    getLinkStatus,
+    separator
  } = require('./connectwhatsapp');
 const { url } = require('inspector');
 
@@ -185,6 +186,21 @@ app.post('/getLinkstatus', (req, res) => {
     } else {
         res.json({ message: 'Not shared' });
     }
+});
+
+
+app.post('/separateLinks', (req, res) => {
+    const message = req.body.text;
+    if (!message) {
+        return res.status(400).send('message is required.');
+    }
+        try {
+            const links = separator(message);
+            res.json(links);
+        } catch (err) {
+            console.error("Error separatig links:", err);
+            res.status(500).send('Failed to separate links.');
+        }
 });
 
 app.post('/sendmessage', async (req, res) => {
