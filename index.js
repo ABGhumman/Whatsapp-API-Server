@@ -184,7 +184,7 @@ app.post('/getLinkstatus', (req, res) => {
             res.status(500).send('Failed to check Link Status.');
         }
     } else {
-        res.json({ message: 'Not shared' });
+        res.status(404).json({ message: 'Please make sure to login Whatsapp or Telegram' });
     }
 });
 
@@ -200,6 +200,24 @@ app.post('/separateLinks', (req, res) => {
         } catch (err) {
             console.error("Error separatig links:", err);
             res.status(500).send('Failed to separate links.');
+        }
+});
+
+app.post('/convertLink', (req, res) => {
+    const link = req.body.link;
+    const token= req.body.token;
+    if (!link) {
+        return res.status(400).send('Link is required.');
+    }
+    if (!token) {
+        return res.status(400).send('Token is required.');
+    }
+        try {
+            const link = sshortenUrlWithBitly(link, token);
+            res.json({converted: link});
+        } catch (err) {
+            console.error("Error concerting link:", err);
+            res.status(500).send('Failed to convert link.');
         }
 });
 

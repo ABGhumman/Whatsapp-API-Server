@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const axios = require('axios');
+const { platform } = require('os');
 
 // Serve this from Express later
 const placeholderPath = path.join(__dirname, 'assets', 'placeholder.png');
@@ -87,10 +88,10 @@ async function initializeWhatsAppStore() {
                                     fs.rmSync(qrFolder, { recursive: true, force: true });
                                     console.log(`Deleted qr folder for user ${userId}`);
                                 }
-                                if (fs.existsSync(statsFolder)) {
+                                /*if (fs.existsSync(statsFolder)) {
                                     fs.rmSync(statsFolder, { recursive: true, force: true });
                                     console.log(`Deleted stats folder for user ${userId}`);
-                                }
+                                }*/
                                 if (fs.existsSync(authFolder)) {
                                     fs.rmSync(authFolder, { recursive: true, force: true });
                                     console.log(`Deleted auth folder for user ${userId}`);
@@ -146,7 +147,8 @@ async function initializeWhatsAppStore() {
                                          await axios.post('http://localhost:8080/reader/message', {
                                          userId: userId,
                                          groupId: remoteJid,
-                                         message: msgContent
+                                         message: msgContent,
+                                         platform:"whatsapp"
                                          });
                                         console.log(`✅ Message forwarded to API`);
                                     }
@@ -257,10 +259,10 @@ async function connectwhatsapp(userId) {
                             fs.rmSync(qrFolder, { recursive: true, force: true });
                             console.log(`Deleted qr folder for user ${userId}`);
                         }
-                        if (fs.existsSync(statsFolder)) {
+                        /*if (fs.existsSync(statsFolder)) {
                             fs.rmSync(statsFolder, { recursive: true, force: true });
                             console.log(`Deleted stats folder for user ${userId}`);
-                        }
+                        }*/
                         if (fs.existsSync(authFolder)) {
                             fs.rmSync(authFolder, { recursive: true, force: true });
                             console.log(`Deleted auth folder for user ${userId}`);
@@ -343,7 +345,8 @@ async function connectwhatsapp(userId) {
                                  await axios.post('http://localhost:8080/reader/message', {
                                  userId: userId,
                                  groupId: remoteJid,
-                                 message: msgContent
+                                 message: msgContent,
+                                 platform:"whatsapp"
                                 });
                                 console.log(`✅ Message forwarded to API`);
                             }
@@ -477,6 +480,7 @@ async function sendMessageToGroups(userId, groupJids, message) {
 
     for (const groupJid of groupJids) {
         try {
+           // await sock.assertSessions([groupJid], true);
             await sock.sendMessage(groupJid, { text: nmessage });
             console.log(`✅ Message sent to ${groupJid}`);
         } catch (err) {
@@ -676,11 +680,11 @@ async function logoutUser(userId) {
     // Delete auth folder
     try {
         fs.rmSync(authPath, { recursive: true, force: true });
-        fs.rmSync(statsPath, { recursive: true, force: true });
+        //fs.rmSync(statsPath, { recursive: true, force: true });
         fs.rmSync(qrPath, { recursive: true, force: true });
         fs.rmSync(groupFilePath, { recursive: true, force: true });
         console.log(`🗑️ Deleted auth folder for user: ${userId}`);
-        console.log(`🗑️ Deleted stats folder for user: ${userId}`);
+        //console.log(`🗑️ Deleted stats folder for user: ${userId}`);
         console.log(`🗑️ Deleted qr folder for user: ${userId}`);
         console.log(`🗑️ Deleted read groups file for user: ${userId}`);
     } catch (err) {
@@ -712,5 +716,6 @@ module.exports = {
     getStats,
     getLinks,
     getLinkStatus,
-    separator
+    separator,
+    shortenUrlWithBitly
 };

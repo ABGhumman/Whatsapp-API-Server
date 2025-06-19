@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>WhatsApp QR Code</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            padding: 50px;
+        }
+
+        img {
+            margin-top: 20px;
+            border: 2px solid #333;
+            width: 300px;
+            height: 300px;
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            margin-top: 20px;
+            margin-right: 10px;
+        }
+
+        input,
+        textarea,
+        select {
+            padding: 10px;
+            font-size: 16px;
+            margin-top: 20px;
+        }
+
+        #groupsList {
+            margin-top: 30px;
+            text-align: left;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            border-top: 1px solid #ccc;
+            padding-top: 20px;
+        }
+
+        ul {
+            padding-left: 20px;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Connect to WhatsApp</h1>
+    <input type="text" id="userIdInput" placeholder="Enter your User ID">
+    <br>
+    <button onclick="startConnection()">Start WhatsApp Connection</button>
+    <button onclick="getGroups()">Get Groups</button>
+    <button onclick="logout()">Logout</button>
+
+    <br>
+    <textarea id="messageInput" placeholder="Enter your message here" rows="4" cols="50" style="margin-top: 20px;"></textarea>
+    <br>
+    <select id="groupSelect" multiple size="6" style="margin-top: 20px; width: 300px;"></select>
+    <br>
+    <button onclick="sendMessageToGroups()">Send Message</button>
+
+    <div id="qr-container">
+        <h3>Scan this QR Code</h3>
+        <img id="qrImage" src="" alt="QR Code">
+    </div>
+
+    <p id="responseMessage"></p>
+
+    <div id="groupsList"></div>
+
+    <script>
+        let currentUserId = null; // Global userId for refresh
+
+        function startConnection() {
+            const userId = document.getElementById('userIdInput').value.trim();
+            if (!userId) {
+                alert('Please enter a User ID.');
+                return;
+            }
+
+            currentUserId = userId; // Save userId globally
+
+            fetch(`/connect?userId=${encodeURIComponent(userId)}`)
+                .then(response => response.text())
+                .then(msg => {
+                    document.getElementById('responseMessage').innerText = msg;
+                    const qrImage = document.getElementById('qrImage');
+                    qrImage.src = `/qr?userId=${encodeURIComponent(userId)}&t=${new Date().getTime()}`;
+                })
+                .catch(err => {
+                    console.error(err);
+                    document.getElementById('responseMessage').innerText = 'Failed to start WhatsApp connection.';
+                });
+        }
+
+        function getGroups() {
+            const userId = document.getElementById('userIdInput').value.trim();
+            if (!userId) {
+                alert('Please enter a User ID.');
+                return;
+            }
+
+            fetch(`/fetchGroups?userId=${encodeURIComponent(userId)}`)
+                .then(response => response.json())
+                .then(data => {
+                    const groupsDiv = document.getElementById('groupsList');
+                    const groupSelect = document.getElementById('groupSelect');
+                    let html = "<h3>Groups:</h3>";
+
+                    groupSelect.innerHTML = "";
+
+                    if (Array.isArray(data)) {
+                        if (data.length === 0) {
+                            html += "<p>No groups found.</p>";
+                        } else {
+                            html += "<ul>";
+                            data.forEach(group => {
+                                const groupName = group.name || group.subject || "Unnamed";
+                                const groupJid = group.id || group.jid || "";
+                                html += `<li>${groupName}</li>`;
+
+                                const option = document.createElement('option');
+                                option.value = groupJid;
+                                option.text = groupName;
+                                groupSelect.appendChild(option);
+                            });
+                            html += "</ul>";
+                        }
+                    } else {
+                        html += "<p>Unexpected response format.</p>";
+                    }
+
+                    groupsDiv.innerHTML = html;
+                })
+                .catch(err => {
+                    console.error(err);
+                    document.getElementById('groupsList').innerText = err.message || 'Failed to fetch groups.';
+                });
+        }
+
+        function logout() {
+            const userId = document.getElementById('userIdInput').value.trim();
+            if (!userId) {
+                alert('Please enter a User ID.');
+                return;
+            }
+
+            fetch(`/logout?userId=${encodeURIComponent(userId)}`)
+                .then(response => response.text())
+                .then(msg => {
+                    document.getElementById('responseMessage').innerText = msg;
+                })
+                .catch(err => {
+                    console.error(err);
+                    document.getElementById('responseMessage').innerText = 'Logout failed.';
+                });
+        }
+
+        function sendMessageToGroups() {
+            const userId = document.getElementById('userIdInput').value.trim();
+            const message = document.getElementById('messageInput').value.trim();
+            const groupSelect = document.getElementById('groupSelect');
+            const groupJids = Array.from(groupSelect.selectedOptions).map(option => option.value);
+
+            if (!userId || !message || groupJids.length === 0) {
+                alert("Please enter User ID, write a message, and select at least one group.");
+                return;
+            }
+
+            const payload = {
+                userId: userId,
+                message: message,
+                groupJids: groupJids
+            };
+
+            fetch('/sendmessage', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            })
+                .then(response => response.json())
+                .then(result => {
+                    alert(result.message || "Message sent.");
+                })
+                .catch(err => {
+                    console.error("Failed to send message:", err);
+                    alert("Failed to send message.");
+                });
+        }
+
+        // Auto-refresh QR code every 2 seconds if userId is set
+        setInterval(() => {
+            if (currentUserId) {
+                const qrImage = document.getElementById('qrImage');
+                qrImage.src = `/qr?userId=${encodeURIComponent(currentUserId)}&t=${new Date().getTime()}`;
+            }
+        }, 2000);
+    </script>
+</body>
+
+</html>
