@@ -11,7 +11,8 @@ const { fetchGroups,
     getStats, 
     getLinks,
     getLinkStatus,
-    separator
+    separator,
+    setGroups
  } = require('./connectwhatsapp');
 const { url } = require('inspector');
 
@@ -130,6 +131,31 @@ app.get('/fetchGroups', (req, res) => {
     } else {
         res.json({ message: 'Please log in first by scanning the QR code.' });
     }
+});
+
+app.post('/setGroups', (req, res) => {
+    const userId = req.query.userId; 
+    const groups = req.body.groups; // Expecting an array of group objects  
+    if (!userId) {
+        return res.status(400).send('User ID is required.');
+    }
+    if (!groups || !Array.isArray(groups)) {
+        return res.status(400).send('Groups data is required and should be an array.');
+    }
+    const userFolderPath = path.join(__dirname, 'auth', userId);
+    if (fs.existsSync(userFolderPath) && fs.readdirSync(userFolderPath).length > 0) {
+        setGroups(userId, groups)
+            .then(() => {
+                res.json({ message: 'Groups set successfully.' });
+            })
+            .catch(err => {
+                console.error("Error setting groups:", err);
+                res.status(500).send('Failed to set groups.');
+            });
+    } else {
+        res.json({ message: 'Please log in first by scanning the QR code.' });
+    }
+           
 });
 
 app.post('/getLinks', (req, res) => {

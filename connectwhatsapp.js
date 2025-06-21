@@ -654,7 +654,17 @@ function getLinks(userId, date) {
     });
 }
 
-
+async function setGroups(userId, groups) {
+    const groupFilePath = path.join(__dirname, 'groupstoread', `${userId}.json`);
+    try {
+        // Overwrite the file directly with the new groups array
+        fs.writeFileSync(groupFilePath, JSON.stringify(groups, null, 2), 'utf8');
+        console.log(`✅ Groups updated for user ${userId}`);
+    } catch (err) {
+        console.error(`❌ Failed to update groups for user ${userId}:`, err.message);
+        return { error: 'Failed to update groups' };
+    }
+}
 async function logoutUser(userId) {
     const authPath = path.join(__dirname, 'auth', userId);
     const statsPath = path.join(__dirname, 'countstats', userId);
@@ -717,5 +727,6 @@ module.exports = {
     getLinks,
     getLinkStatus,
     separator,
-    shortenUrlWithBitly
+    shortenUrlWithBitly,
+    setGroups
 };
