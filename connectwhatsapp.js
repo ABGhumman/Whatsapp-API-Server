@@ -5,6 +5,7 @@ const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const axios = require('axios');
 const { platform } = require('os');
+const { json } = require('stream/consumers');
 
 // Serve this from Express later
 const placeholderPath = path.join(__dirname, 'assets', 'placeholder.png');
@@ -16,6 +17,8 @@ const getMessage = key => {
     if (store[id])
         return store[id].message
 }
+
+
 
 function stripDeviceId(jid) {
     return jid?.replace(/:\d+@/, '@');
@@ -123,8 +126,10 @@ async function initializeWhatsAppStore() {
                     const allowedGroups = getAllowedGroups(userId); // Load once per event
                     messages.forEach(async message => {
                         const senderId = message.key.participant;
+                        console.log(`Received message from: ${senderId}`);
                         const remoteJid = message.key.remoteJid;
                         const myJid = store[userId]?.user?.id;
+                        console.log(`My JID: ${myJid}, Remote JID: ${remoteJid}`);
                         if (stripDeviceId(myJid) === stripDeviceId(senderId)) {
                             return; // Skip own messages
                         }
@@ -153,7 +158,12 @@ async function initializeWhatsAppStore() {
                                         console.log(`✅ Message forwarded to API`);
                                     }
                                     catch (err) {
-                                        console.error(`❌ Failed to forward message:`, err.message);
+                                        if (err.response) {
+                                            // Log the full error response for debugging
+                                            console.error(`❌ Failed to forward message:`, err.message, 'Response:', JSON.stringify(err.response.data));
+                                        } else {
+                                            console.error(`❌ Failed to forward message:`, err.message);
+                                        }
                                     }
                                 }
                             }
@@ -321,8 +331,10 @@ async function connectwhatsapp(userId) {
             const allowedGroups = getAllowedGroups(userId); // Load once per event
             messages.forEach(async message => {
                 const senderId = message.key.participant;
+                console.log(`Received message from: ${senderId}`);
                 const remoteJid = message.key.remoteJid;
                 const myJid = store[userId]?.user?.id;
+                console.log(`My JID: ${myJid}, Remote JID: ${remoteJid}`);
                 if (stripDeviceId(myJid) === stripDeviceId(senderId)) {
                     return; // Skip own messages
                 }
@@ -351,8 +363,13 @@ async function connectwhatsapp(userId) {
                                 console.log(`✅ Message forwarded to API`);
                             }
                             catch (err) {
-                                console.error(`❌ Failed to forward message:`, err.message);
-                            }
+                                        if (err.response) {
+                                            // Log the full error response for debugging
+                                            console.error(`❌ Failed to forward message:`, err.message, 'Response:', JSON.stringify(err.response.data));
+                                        } else {
+                                            console.error(`❌ Failed to forward message:`, err.message);
+                                        }
+                                    }
                         }
                     }
                 }
@@ -472,16 +489,11 @@ async function sendMessageToGroups(userId, groupJids, message) {
         console.error(`❌ No active socket found for user ${userId}`);
         return;
     }
-    const nmessage = await processMessageWithTracking(message, userId);
-    if (!nmessage) {
-        console.error(`❌ Failed to process message for user ${userId}`);
-        return;
-    }
-
+    
     for (const groupJid of groupJids) {
         try {
            // await sock.assertSessions([groupJid], true);
-            await sock.sendMessage(groupJid, { text: nmessage });
+            await sock.sendMessage(groupJid, { text: message });
             console.log(`✅ Message sent to ${groupJid}`);
         } catch (err) {
             console.error(`❌ Failed to send message to ${groupJid}:`, err.message);
@@ -491,7 +503,8 @@ async function sendMessageToGroups(userId, groupJids, message) {
 
 function extractUrls(text) {
     if (typeof text !== 'string') return [];
-    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    // Match URLs with http, https, ftp, www, or just domain.tld
+    const urlRegex = /\b((?:https?:\/\/|http:\/\/|ftp:\/\/|www\.)[^\s/$.?#].[^\s]*|(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(?:\/[^\s]*)?)/gi;
     return text.match(urlRegex) || [];
 }
 
@@ -514,9 +527,14 @@ async function shortenUrlWithBitly(longUrl, accessToken) {
     }
 }
 
-async function processMessageWithTracking(message, userId) {
+async function processMessageWithTracking(userId, message, whatsapp, telegram) {
     const userFolder = path.join(__dirname, 'countstats', userId);
     const filePath = path.join(userFolder, 'links.json');
+    let messagew = message;
+    let messaget = message;
+    console.log("whatsapp unprocessed:", messagew);
+    console.log("telegram unprocessed:", messaget);
+    console.log("message:", message);
 
     // Ensure folder exists
     if (!fs.existsSync(userFolder)) {
@@ -529,10 +547,11 @@ async function processMessageWithTracking(message, userId) {
         data = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
     }
 
-    const urls = extractUrls(message);
+    // Extract URLs from the original messagew (not message object)
+    const urls = extractUrls(messagew);
 
     for (const originalUrl of urls) {
-        const existing = data.find(entry => entry.url === originalUrl);
+        let existing = data.find(entry => entry.url === originalUrl);
 
         let linkId;
         let bitlyUrl = "{}";
@@ -542,24 +561,32 @@ async function processMessageWithTracking(message, userId) {
             bitlyUrl = existing.bitly;
         } else {
             linkId = uuidv4();
-            //bitlyUrl = await shortenUrlWithBitly(originalUrl, accessToken);
+            // bitlyUrl = await shortenUrlWithBitly(originalUrl, accessToken);
             data.push({
                 id: linkId,
                 url: originalUrl,
                 bitly: bitlyUrl,
                 count: 0,
+                Telegram: telegram,
+                Whatsapp: whatsapp,
                 timestamp: Date.now()
             });
         }
 
-        const trackingUrl = `http://localhost:5000/click/${userId}/${linkId}`;
-        message = message.replace(originalUrl, trackingUrl);
-    }
+        const trackingUrlw = `http://localhost:5000/click/${userId}/${linkId}/whatsapp`;
+        const trackingUrlt = `http://localhost:5000/click/${userId}/${linkId}/telegram`;
 
+        // Replace only in messagew and messaget separately
+        messagew = messagew.replace(originalUrl, trackingUrlw);
+        messaget = messaget.replace(originalUrl, trackingUrlt);
+    }
+    
     // Save updated data
     fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
-
-    return message;
+    console.log("whatsapp processed:", messagew);
+    console.log("telegram processed:", messaget);
+    // Return the modified messages as an object
+    return { T: messagew, W: messaget };
 }
 
 function separator(message) {
@@ -728,5 +755,6 @@ module.exports = {
     getLinkStatus,
     separator,
     shortenUrlWithBitly,
-    setGroups
+    setGroups,
+    processMessageWithTracking
 };

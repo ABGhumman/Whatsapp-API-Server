@@ -12,7 +12,8 @@ const { fetchGroups,
     getLinks,
     getLinkStatus,
     separator,
-    setGroups
+    setGroups,
+    processMessageWithTracking
  } = require('./connectwhatsapp');
 const { url } = require('inspector');
 
@@ -262,6 +263,28 @@ app.post('/sendmessage', async (req, res) => {
         } catch (err) {
             console.error("Error sending messages:", err);
             return res.status(500).json({ success: false, error: "Failed to send messages" });
+        }
+    } else {
+        res.json({ message: 'Please log in first by scanning the QR code.' });
+    }
+});
+
+app.post('/processMessage', async (req, res) => {
+    const { userId, message,whatsapp,telegram } = req.body;
+
+    // Validate input
+    if (!userId || !message) {
+        return res.status(400).json({ error: "Missing or invalid userId or links" });
+    }
+
+    const userFolderPath = path.join(__dirname, 'auth', userId);
+    if (fs.existsSync(userFolderPath) && fs.readdirSync(userFolderPath).length > 0) {
+        try {
+            const processedMessage = await processMessageWithTracking(userId, message,whatsapp,telegram);
+            return res.status(200).json( processedMessage);
+        } catch (err) {
+            console.error("Error processing Message:", err);
+            return res.status(500).json({ success: false, error: "Failed to process message" });
         }
     } else {
         res.json({ message: 'Please log in first by scanning the QR code.' });
