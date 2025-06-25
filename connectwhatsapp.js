@@ -528,7 +528,7 @@ async function shortenUrlWithBitly(longUrl, accessToken) {
     }
 }
 
-async function processMessageWithTracking(userId, message, whatsapp, telegram) {
+async function processMessageWithTracking(userId, message, whatsapp, telegram,bitley) {
     const userFolder = path.join(__dirname, 'countstats', userId);
     const filePath = path.join(userFolder, 'links.json');
     let messagew = message;
@@ -576,13 +576,14 @@ async function processMessageWithTracking(userId, message, whatsapp, telegram) {
                 timestamp: Date.now()
             });
         }
-
+        if (!bitley) {
         const trackingUrlw = `http://localhost:5000/click/${userId}/${linkId}/${wplatform}`;
         const trackingUrlt = `http://localhost:5000/click/${userId}/${linkId}/${tplatform}`;
 
         // Replace only in messagew and messaget separately
         messagew = messagew.replace(originalUrl, trackingUrlw);
         messaget = messaget.replace(originalUrl, trackingUrlt);
+        }
     }
     
     // Save updated data

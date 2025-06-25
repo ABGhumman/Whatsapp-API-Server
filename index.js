@@ -273,7 +273,7 @@ app.post('/sendmessage', async (req, res) => {
 });
 
 app.post('/processMessage', async (req, res) => {
-    const { userId, message,whatsapp,telegram } = req.body;
+    const { userId, message,whatsapp,telegram,bitley } = req.body;
 
     // Validate input
     if (!userId || !message) {
@@ -283,7 +283,7 @@ app.post('/processMessage', async (req, res) => {
     const userFolderPath = path.join(__dirname, 'auth', userId);
     if (fs.existsSync(userFolderPath) && fs.readdirSync(userFolderPath).length > 0) {
         try {
-            const processedMessage = await processMessageWithTracking(userId, message,whatsapp,telegram);
+            const processedMessage = await processMessageWithTracking(userId, message,whatsapp,telegram,bitley);
             return res.status(200).json( processedMessage);
         } catch (err) {
             console.error("Error processing Message:", err);
