@@ -13,6 +13,7 @@ const { fetchGroups,
     getLinkStatus,
     separator,
     setGroups,
+    shortenUrlWithBitly,
     processMessageWithTracking
  } = require('./connectwhatsapp');
 const { url } = require('inspector');
@@ -230,9 +231,10 @@ app.post('/separateLinks', (req, res) => {
         }
 });
 
-app.post('/convertLink', (req, res) => {
+app.post('/convertLink', async (req, res) => {
     const link = req.body.link;
     const token= req.body.token;
+    
     if (!link) {
         return res.status(400).send('Link is required.');
     }
@@ -240,8 +242,9 @@ app.post('/convertLink', (req, res) => {
         return res.status(400).send('Token is required.');
     }
         try {
-            const link = sshortenUrlWithBitly(link, token);
-            res.json({converted: link});
+            console.log("token:", token);
+            const nlink = await  shortenUrlWithBitly(link, token);
+            res.json({converted: nlink});
         } catch (err) {
             console.error("Error concerting link:", err);
             res.status(500).send('Failed to convert link.');
@@ -291,10 +294,10 @@ app.post('/processMessage', async (req, res) => {
     }
 });
 
-app.get('/click/:userId/:linkId', (req, res) => {
-    const { userId, linkId } = req.params;
-    if (!userId || !linkId) {
-        return res.status(400).send('User ID and Link ID are required.');
+app.get('/click/:userId/:linkId/:wplatform', (req, res) => {
+    const { userId, linkId ,wplatform} = req.params;
+    if (!userId || !linkId || !wplatform) {
+        return res.status(400).send('User ID, Link ID and Platform are required.');
     }
 
     const userFolderPath = path.join(__dirname, 'auth', userId);
@@ -303,7 +306,29 @@ app.get('/click/:userId/:linkId', (req, res) => {
     }
     else {
         try {
-            const url = incrementLinkClick(userId, linkId);
+            const url = incrementLinkClick(userId, linkId,wplatform);
+            return res.redirect(url);
+        } catch (err) {
+            console.error(err);
+            return res.status(404).send(err.message);
+        }
+    }
+});
+
+app.get('/click/:userId/:linkId/:tplatform', (req, res) => {
+    const { userId, linkId ,tplatform} = req.params;
+    if (!userId || !linkId || !tplatform) {
+        return res.status(400).send('User ID, Link ID and Platform are required.');
+    }
+
+    const userFolderPath = path.join(__dirname, 'auth', userId);
+    if (!fs.existsSync(userFolderPath) || fs.readdirSync(userFolderPath).length === 0) {
+        return res.status(403).send('User is not logged in.');
+    }
+    else {
+        try {
+            const url = incrementLinkClick(userId, linkId,tplatform);
+            console.log("Redirecting to URL:", url);
             return res.redirect(url);
         } catch (err) {
             console.error(err);

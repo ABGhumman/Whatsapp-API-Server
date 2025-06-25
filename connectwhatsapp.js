@@ -510,6 +510,7 @@ function extractUrls(text) {
 
 async function shortenUrlWithBitly(longUrl, accessToken) {
     try {
+        console.log("Bitly Token :", fs.accessToken);
         const response = await axios.post(
             'https://api-ssl.bitly.com/v4/shorten',
             { long_url: longUrl },
@@ -552,7 +553,8 @@ async function processMessageWithTracking(userId, message, whatsapp, telegram) {
 
     for (const originalUrl of urls) {
         let existing = data.find(entry => entry.url === originalUrl);
-
+        let wplatform = "whatsapp";
+        let tplatform = "telegram";
         let linkId;
         let bitlyUrl = "{}";
 
@@ -567,14 +569,16 @@ async function processMessageWithTracking(userId, message, whatsapp, telegram) {
                 url: originalUrl,
                 bitly: bitlyUrl,
                 count: 0,
+                TelegramCount: 0,
+                WhatsappCount: 0,
                 Telegram: telegram,
                 Whatsapp: whatsapp,
                 timestamp: Date.now()
             });
         }
 
-        const trackingUrlw = `http://localhost:5000/click/${userId}/${linkId}/whatsapp`;
-        const trackingUrlt = `http://localhost:5000/click/${userId}/${linkId}/telegram`;
+        const trackingUrlw = `http://localhost:5000/click/${userId}/${linkId}/${wplatform}`;
+        const trackingUrlt = `http://localhost:5000/click/${userId}/${linkId}/${tplatform}`;
 
         // Replace only in messagew and messaget separately
         messagew = messagew.replace(originalUrl, trackingUrlw);
@@ -586,7 +590,7 @@ async function processMessageWithTracking(userId, message, whatsapp, telegram) {
     console.log("whatsapp processed:", messagew);
     console.log("telegram processed:", messaget);
     // Return the modified messages as an object
-    return { T: messagew, W: messaget };
+    return { W: messagew, T: messaget };
 }
 
 function separator(message) {
@@ -594,7 +598,7 @@ function separator(message) {
     return urls;
 }
 
-function incrementLinkClick(userId, linkId) {
+function incrementLinkClick(userId, linkId,platform) {
     const folderPath = path.join(__dirname, 'countstats', userId);
     const filePath = path.join(folderPath, 'links.json');
 
@@ -611,6 +615,12 @@ function incrementLinkClick(userId, linkId) {
     }
 
     link.count = (link.count || 0) + 1;
+    if (platform === "whatsapp") {
+        link.WhatsappCount = (link.WhatsappCount || 0) + 1;
+    }
+    else if (platform === "telegram") {
+        link.TelegramCount = (link.TelegramCount || 0) + 1;
+    }
 
     fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
 
