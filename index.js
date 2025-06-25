@@ -294,7 +294,7 @@ app.post('/processMessage', async (req, res) => {
     }
 });
 
-app.get('/click/:userId/:linkId/:wplatform', (req, res) => {
+app.get('/click/:userId/:linkId/:wplatform', async (req, res) => {
     const { userId, linkId ,wplatform} = req.params;
     if (!userId || !linkId || !wplatform) {
         return res.status(400).send('User ID, Link ID and Platform are required.');
@@ -306,7 +306,7 @@ app.get('/click/:userId/:linkId/:wplatform', (req, res) => {
     }
     else {
         try {
-            const url = incrementLinkClick(userId, linkId,wplatform);
+            const url =await incrementLinkClick(userId, linkId,wplatform);
             return res.redirect(url);
         } catch (err) {
             console.error(err);
@@ -315,7 +315,7 @@ app.get('/click/:userId/:linkId/:wplatform', (req, res) => {
     }
 });
 
-app.get('/click/:userId/:linkId/:tplatform', (req, res) => {
+app.get('/click/:userId/:linkId/:tplatform', async (req, res) => {
     const { userId, linkId ,tplatform} = req.params;
     if (!userId || !linkId || !tplatform) {
         return res.status(400).send('User ID, Link ID and Platform are required.');
@@ -327,7 +327,7 @@ app.get('/click/:userId/:linkId/:tplatform', (req, res) => {
     }
     else {
         try {
-            const url = incrementLinkClick(userId, linkId,tplatform);
+            const url = await incrementLinkClick(userId, linkId,tplatform);
             console.log("Redirecting to URL:", url);
             return res.redirect(url);
         } catch (err) {
