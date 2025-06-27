@@ -14,6 +14,7 @@ const { fetchGroups,
     separator,
     setGroups,
     shortenUrlWithBitly,
+    getLinkClicks,
     processMessageWithTracking
  } = require('./connectwhatsapp');
 const { url } = require('inspector');
@@ -188,6 +189,35 @@ app.post('/getLinks', (req, res) => {
     }
 });
 
+app.post('/getLinkClicks', (req, res) => {
+    const userId = req.query.userId;
+    const date = req.body.date;
+    const linkId = req.body.linkId;
+    if (!userId) {
+        return res.status(400).send('User ID is required.');
+    }
+
+    if (!date) {
+        return res.status(400).send('Date is required.');
+    }
+
+    const statsFolderPath = path.join(__dirname, 'countstats', userId);
+    const filePath = path.join(statsFolderPath, `linkclicks.json`);
+
+    if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+        getLinkClicks(userId,date, linkId)
+            .then(links => {
+                res.json(links);
+            })
+            .catch(err => {
+                console.error("Error fetching links:", err);
+                res.status(500).send('Failed to fetch Links.');
+            });
+    } else {
+        res.json({ message: 'Please share links to see analytics' });
+    }
+});
+
 
 app.post('/getLinkstatus', (req, res) => {
     const userId = req.query.userId;
@@ -307,6 +337,7 @@ app.get('/click/:userId/:linkId/:wplatform', async (req, res) => {
     else {
         try {
             const url =await incrementLinkClick(userId, linkId,wplatform);
+            console.log("Redirecting to URL:", url);
             return res.redirect(url);
         } catch (err) {
             console.error(err);

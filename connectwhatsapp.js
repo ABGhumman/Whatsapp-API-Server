@@ -188,6 +188,7 @@ async function connectwhatsapp(userId) {
         fs.writeFileSync(readgroupsPath, JSON.stringify([]), 'utf8'); // Create an empty file if it doesn't exist
     }
     const filePath = path.join(statsFolder, 'links.json');
+    const clicksPath = path.join(statsFolder, 'linkclicks.json');
     const qrPath = path.join(__dirname, 'qr', userId);
     if (!fs.existsSync(qrPath)) {
         fs.mkdirSync(qrPath, { recursive: true });
@@ -206,7 +207,13 @@ async function connectwhatsapp(userId) {
     } else {
         console.log('links.json already exists');
     }
-
+    
+    if (!fs.existsSync(clicksPath)) {
+        fs.writeFileSync(clicksPath, JSON.stringify([], null, 2), 'utf8');
+        console.log('linkclicks.json created successfully with []');
+    } else {
+        console.log('linkclickss.json already exists');
+    }
 
     if (!fs.existsSync(authFolder)) {
         fs.mkdirSync(authFolder, { recursive: true });
@@ -599,31 +606,98 @@ function separator(message) {
     return urls;
 }
 
+function toDateOnly(value) {
+  const d = new Date(value);          
+  const yyyy = d.getFullYear();
+  const mm   = String(d.getMonth() + 1).padStart(2, '0'); // months are 0-based
+  const dd   = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 function incrementLinkClick(userId, linkId,platform) {
     const folderPath = path.join(__dirname, 'countstats', userId);
     const filePath = path.join(folderPath, 'links.json');
+    const clickfilePath = path.join(folderPath, 'linkclicks.json');
 
-    if (!fs.existsSync(filePath)) {
+    if (!fs.existsSync(filePath) || !fs.existsSync(clickfilePath)) {
         throw new Error("Tracking file not found");
     }
 
     const data = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-
+    const clickData = JSON.parse(fs.readFileSync(clickfilePath, 'utf-8'));
     const link = data.find(entry => entry.id === linkId);
 
     if (!link) {
         throw new Error("Link not found");
     }
+     else {
+        if (platform === "whatsapp") {
+            link.WhatsappCount += 1;
+        }
+        else if (platform === "telegram") {
+            link.TelegramCount += 1;
+        }
+     }
 
-    link.count = (link.count || 0) + 1;
-    if (platform === "whatsapp") {
-        link.WhatsappCount = (link.WhatsappCount || 0) + 1;
+    const linkClick = clickData.find(entry => entry.id === linkId);
+    console.log("linkClick", linkClick);
+    if(linkClick) {
+        const clicks = linkClick.clicks;
+        if (clicks && linkClick.clicks.some(entry => entry.timestamp === toDateOnly(Date.now())))
+        {
+            const existingClick = clicks.find(entry => entry.timestamp === toDateOnly(Date.now()));
+            if(platform === "whatsapp") {
+                existingClick.whatsapp += 1;
+            }
+            else if(platform === "telegram") {
+                existingClick.telegram += 1;
+            }
+        }
+        else {
+            if(platform === "whatsapp") {
+                linkClick.clicks.push({
+                    timestamp: toDateOnly(Date.now()),
+                    whatsapp: 1,
+                    telegram: 0
+                });
+            }
+            else if(platform === "telegram") {
+                linkClick.clicks.push({
+                    timestamp: toDateOnly(Date.now()),
+                    whatsapp: 0,
+                    telegram: 1
+                });
+            }
+        }
     }
-    else if (platform === "telegram") {
-        link.TelegramCount = (link.TelegramCount || 0) + 1;
+    else {
+    if(platform === "whatsapp") {
+        clickData.push({
+            id: linkId,
+            clicks:[
+                {
+                    timestamp: toDateOnly(Date.now()),
+                    whatsapp: 1,
+                    telegram: 0
+                }
+            ]
+        });
     }
-
+    else if(platform === "telegram") {
+        clickData.push({
+            id: linkId,
+            clicks:[
+                {
+                    timestamp: toDateOnly(Date.now()),
+                    whatsapp: 0,
+                    telegram: 1
+                }
+            ]
+        });
+    }
+    }
     fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+    fs.writeFileSync(clickfilePath, JSON.stringify(clickData, null, 2))
 
     return link.url;
 }
@@ -684,6 +758,36 @@ function getLinks(userId, date) {
             try {
                 const stats = JSON.parse(data); // Should be an array
                 const filteredStats = stats.filter(item => item.timestamp >= newdate);
+                resolve(filteredStats);
+            } catch (parseErr) {
+                reject(parseErr);
+            }
+        });
+    });
+}
+
+function formatDateToDDMMYYYY(dateStr) {
+  const [year, month, day] = dateStr.split("-");
+  return `${day}-${month}-${year}`;
+}
+
+function getLinkClicks(userId, date,linkId) {
+    newdate = parseToMillis(date);
+    let filteredStats;
+    return new Promise((resolve, reject) => {
+        const statsPath = path.join(__dirname, 'countstats', userId, 'linkclicks.json');
+
+        fs.readFile(statsPath, 'utf-8', (err, data) => {
+            if (err) return reject(err);
+            try {
+                const stats = JSON.parse(data); // Should be an array
+                const linkClick = stats.find(entry => entry.id === linkId);
+                if (!linkClick) {
+                    return resolve([]); // No clicks found for this linkId
+                }
+                else{
+                    filteredStats = linkClick.clicks.filter(item => parseToMillis(formatDateToDDMMYYYY(item.timestamp)) >= newdate);
+                }
                 resolve(filteredStats);
             } catch (parseErr) {
                 reject(parseErr);
@@ -767,5 +871,6 @@ module.exports = {
     separator,
     shortenUrlWithBitly,
     setGroups,
-    processMessageWithTracking
+    processMessageWithTracking,
+    getLinkClicks
 };
